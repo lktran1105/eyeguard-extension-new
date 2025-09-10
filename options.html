@@ -1,0 +1,180 @@
+<!doctype html>
+<html>
+<head>
+	<meta charset="utf-8" />
+	<meta name="viewport" content="width=device-width, initial-scale=1" />
+	<title>EyeGuard Settings</title>
+	<style>
+		body { 
+			font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; 
+			margin: 16px; 
+			color: #0f172a; 
+			background: #f8fafc;
+		}
+		.h1 { 
+			font-weight:800; 
+			font-size:22px; 
+			margin-bottom:16px; 
+			color: #0b8793;
+		}
+		.card { 
+			border:1px solid #e2e8f0; 
+			border-radius:12px; 
+			padding:16px; 
+			margin-bottom:16px; 
+			background: white;
+			box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+		}
+		.row { 
+			display:flex; 
+			align-items:center; 
+			justify-content:space-between; 
+			margin:10px 0; 
+		}
+		.button { 
+			background:#0b8793; 
+			color:#fff; 
+			border:none; 
+			padding:10px 12px; 
+			border-radius:8px; 
+			cursor:pointer; 
+			font-weight: 500;
+			transition: background 0.2s;
+		}
+		.button:hover {
+			background: #0a6b73;
+		}
+		.button.danger {
+			background: #e11d48;
+		}
+		.button.danger:hover {
+			background: #be123c;
+		}
+		.input { 
+			padding:8px 10px; 
+			border:1px solid #e2e8f0; 
+			border-radius:8px; 
+			transition: border-color 0.2s;
+		}
+		.input:focus {
+			outline: none;
+			border-color: #0b8793;
+			box-shadow: 0 0 0 3px rgba(11, 135, 147, 0.1);
+		}
+		.actions {
+			display: flex;
+			gap: 12px;
+			justify-content: flex-end;
+			margin-top: 20px;
+		}
+		.section-title {
+			font-weight: 700;
+			margin-bottom: 12px;
+			color: #374151;
+			font-size: 16px;
+		}
+		.help-text {
+			font-size: 12px;
+			color: #6b7280;
+			margin-top: 4px;
+		}
+	</style>
+</head>
+<body>
+	<div class="h1">EyeGuard Settings</div>
+	
+	<div class="card">
+		<div class="section-title">General</div>
+		<div class="row">
+			<div>
+				<div>Enable EyeGuard Protection</div>
+				<div class="help-text">Master switch for all EyeGuard features</div>
+			</div>
+			<input type="checkbox" id="enabled" />
+		</div>
+		<div class="row">
+			<div>
+				<div>Auto-start with Browser</div>
+				<div class="help-text">Start EyeGuard when Chrome launches</div>
+			</div>
+			<input type="checkbox" id="autoStart" />
+		</div>
+		<div class="row">
+			<div>
+				<div>Theme</div>
+				<div class="help-text">Choose your preferred theme</div>
+			</div>
+			<select id="theme" class="input">
+				<option value="system">Auto (System)</option>
+				<option value="light">Light</option>
+				<option value="dark">Dark</option>
+			</select>
+		</div>
+	</div>
+	
+	<div class="card">
+		<div class="section-title">Proximity Detection</div>
+		<div class="row">
+			<div>
+				<div>Enable Proximity Detection</div>
+				<div class="help-text">Warn when you're too close to the screen</div>
+			</div>
+			<input type="checkbox" id="proximityEnabled" />
+		</div>
+		<div class="row">
+			<div>
+				<div>Sensitivity</div>
+				<div class="help-text">How sensitive the proximity detection should be</div>
+			</div>
+			<input type="range" id="sensitivity" min="1.1" max="2.0" step="0.1" />
+		</div>
+		<div class="row">
+			<div>
+				<div>Sampling Frequency</div>
+				<div class="help-text">How often to check your distance (10-300 seconds)</div>
+			</div>
+			<input type="number" id="proximityPeriodSeconds" class="input" style="width:100px" /> seconds
+		</div>
+	</div>
+	
+	<div class="card">
+		<div class="section-title">Break Reminders</div>
+		<div class="row">
+			<div>
+				<div>Enable Break Reminders</div>
+				<div class="help-text">Follow the 20-20-20 rule for eye health</div>
+			</div>
+			<input type="checkbox" id="breaksEnabled" />
+		</div>
+		<div class="row">
+			<div>
+				<div>Break Interval</div>
+				<div class="help-text">How often to remind you to take a break (5-120 minutes)</div>
+			</div>
+			<input type="number" id="breakIntervalMinutes" class="input" style="width:100px" /> minutes
+		</div>
+		<div class="row">
+			<div>
+				<div>Break Duration</div>
+				<div class="help-text">How long each break should last (10-300 seconds)</div>
+			</div>
+			<input type="number" id="breakDurationSeconds" class="input" style="width:100px" /> seconds
+		</div>
+		<div class="row">
+			<div>
+				<div>Snooze Time</div>
+				<div class="help-text">How long to snooze a break reminder (1-60 minutes)</div>
+			</div>
+			<input type="number" id="snoozeMinutes" class="input" style="width:100px" /> minutes
+		</div>
+	</div>
+	
+	<div class="actions">
+		<button id="reset" class="button danger">Reset to Defaults</button>
+		<button id="save" class="button">Save Changes</button>
+		<button id="grantCamera" class="button">Grant Camera Access</button>
+	</div>
+	
+	<script src="options.js"></script>
+</body>
+</html>
