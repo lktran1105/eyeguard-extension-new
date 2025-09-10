@@ -1,5 +1,6 @@
 // Simplified EyeGuard Proximity Detection
 // This version uses basic face detection without MediaPipe WebAssembly
+// Updated to use message passing for storage operations
 
 let video, canvas, ctx;
 let initialized = false;
@@ -17,10 +18,19 @@ async function initialize() {
     try {
         updateStatus('Initializing camera...');
         
+        // Wait for DOM to be ready
+        await waitForDOM();
+        
         // Get DOM elements
         video = document.getElementById('video');
         canvas = document.getElementById('canvas');
         ctx = canvas.getContext('2d');
+        
+        console.log('EyeGuard: DOM elements found:', { video, canvas, ctx });
+        
+        if (!video || !canvas || !ctx) {
+            throw new Error('Required DOM elements not found');
+        }
         
         // Initialize camera
         await initializeCamera();
@@ -39,6 +49,25 @@ async function initialize() {
     }
 }
 
+// Wait for DOM elements to be available
+async function waitForDOM() {
+    return new Promise((resolve) => {
+        const checkDOM = () => {
+            const videoEl = document.getElementById('video');
+            const canvasEl = document.getElementById('canvas');
+            
+            if (videoEl && canvasEl) {
+                console.log('EyeGuard: DOM elements ready');
+                resolve();
+            } else {
+                console.log('EyeGuard: Waiting for DOM elements...');
+                setTimeout(checkDOM, 100);
+            }
+        };
+        checkDOM();
+    });
+}
+
 // Initialize camera stream
 async function initializeCamera() {
     console.log('EyeGuard: Requesting camera access...');
@@ -53,16 +82,24 @@ async function initializeCamera() {
             audio: false
         });
         
+        console.log('EyeGuard: Camera stream obtained:', stream);
         video.srcObject = stream;
         
         // Set canvas size to match video
         video.addEventListener('loadedmetadata', () => {
             canvas.width = video.videoWidth;
             canvas.height = video.videoHeight;
-            console.log('EyeGuard: Camera initialized successfully');
+            console.log('EyeGuard: Camera initialized successfully - dimensions:', video.videoWidth, 'x', video.videoHeight);
+            
+            // CRITICAL: Make sure video is playing
+            video.play().then(() => {
+                console.log('EyeGuard: Video is now playing');
+            }).catch(error => {
+                console.error('EyeGuard: Failed to play video:', error);
+            });
         });
         
-        console.log('EyeGuard: Camera stream obtained');
+        console.log('EyeGuard: Camera stream attached to video element');
         
     } catch (error) {
         console.error('EyeGuard: Camera access denied:', error);
@@ -83,11 +120,36 @@ async function performSample() {
     try {
         updateStatus('Sampling...');
         
+        // Check if video is ready
+        if (video.readyState < 2) {
+            console.log('EyeGuard: Video not ready, readyState:', video.readyState);
+            updateStatus('Video not ready');
+            return;
+        }
+        
+        // Check if video has dimensions
+        if (video.videoWidth === 0 || video.videoHeight === 0) {
+            console.log('EyeGuard: Video has no dimensions');
+            updateStatus('Video has no dimensions');
+            return;
+        }
+        
+        // Ensure canvas has correct dimensions
+        if (canvas.width !== video.videoWidth || canvas.height !== video.videoHeight) {
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            console.log('EyeGuard: Canvas resized to match video:', canvas.width, 'x', canvas.height);
+        }
+        
         // Draw current video frame to canvas
         ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
         
         // Get image data for analysis
         const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        
+        // Debug: Check if we actually got image data
+        const samplePixel = imageData.data.slice(0, 4);
+        console.log('EyeGuard: Sample pixel from canvas:', samplePixel);
         
         // Simple face detection based on skin tone detection
         const faceSize = estimateFaceSize(imageData);
@@ -100,7 +162,7 @@ async function performSample() {
                 performCalibration(faceSize);
             } else {
                 // Check proximity
-                const isTooClose = checkProximity(faceSize);
+                const isTooClose = await checkProximity(faceSize);
                 if (isTooClose) {
                     sendProximityWarning();
                 }
@@ -132,10 +194,10 @@ function estimateFaceSize(imageData) {
         const g = data[i + 1];
         const b = data[i + 2];
         
-        // Simple skin tone detection
-        if (r > 95 && g > 40 && b > 20 && 
+        // Much more lenient skin tone detection
+        if (r > 60 && g > 20 && b > 10 && 
             r > g && r > b && 
-            Math.abs(r - g) > 15) {
+            Math.abs(r - g) > 5) {
             skinPixels++;
         }
         totalPixels++;
@@ -166,7 +228,7 @@ function performCalibration(faceSize) {
         timestamp: Date.now()
     };
     
-    // Save calibration data
+    // Save calibration data via message passing
     saveCalibrationData(calibrationData);
     
     updateStatus('Calibrated - Ready');
@@ -174,11 +236,11 @@ function performCalibration(faceSize) {
 }
 
 // Check if user is too close to screen
-function checkProximity(faceSize) {
+async function checkProximity(faceSize) {
     if (!calibrationData) return false;
     
-    // Get current sensitivity setting
-    const sensitivity = getSensitivity();
+    // Get current sensitivity setting via message passing
+    const sensitivity = await getSensitivity();
     
     // Calculate proximity ratio (larger face = closer to screen)
     const proximityRatio = faceSize / calibrationData.baselineFaceSize;
@@ -189,15 +251,26 @@ function checkProximity(faceSize) {
     return proximityRatio > threshold;
 }
 
-// Get sensitivity setting from storage
+// Get sensitivity setting via message passing
 async function getSensitivity() {
-    try {
-        const { settings } = await chrome.storage.local.get('settings');
-        return settings?.sensitivity || 1.5;
-    } catch (error) {
-        console.warn('EyeGuard: Failed to get sensitivity setting:', error);
-        return 1.5;
-    }
+    return new Promise((resolve) => {
+        // Set a timeout to avoid hanging
+        const timeout = setTimeout(() => {
+            console.warn('EyeGuard: Sensitivity request timed out, using default');
+            resolve(1.5);
+        }, 1000);
+        
+        chrome.runtime.sendMessage({ type: 'eyeguard.storage.get.settings' }, (response) => {
+            clearTimeout(timeout);
+            if (response && response.settings && response.settings.sensitivity) {
+                console.log('EyeGuard: Got sensitivity setting:', response.settings.sensitivity);
+                resolve(response.settings.sensitivity);
+            } else {
+                console.warn('EyeGuard: Failed to get sensitivity setting, using default');
+                resolve(1.5);
+            }
+        });
+    });
 }
 
 // Send proximity warning to background script
@@ -206,33 +279,43 @@ function sendProximityWarning() {
     updateStatus('TOO CLOSE!');
 }
 
-// Load calibration data from storage
+// Load calibration data via message passing
 async function loadCalibrationData() {
-    try {
-        const { calibrationData: saved } = await chrome.storage.local.get('calibrationData');
-        if (saved && saved.timestamp) {
-            // Check if calibration is still valid (24 hours)
-            const age = Date.now() - saved.timestamp;
-            if (age < 24 * 60 * 60 * 1000) {
-                calibrationData = saved;
-                console.log('EyeGuard: Loaded existing calibration');
-            } else {
-                console.log('EyeGuard: Calibration expired, will recalibrate');
+    return new Promise((resolve) => {
+        chrome.runtime.sendMessage({ type: 'eyeguard.storage.get.calibration' }, (response) => {
+            try {
+                if (response && response.calibrationData && response.calibrationData.timestamp) {
+                    // Check if calibration is still valid (24 hours)
+                    const age = Date.now() - response.calibrationData.timestamp;
+                    if (age < 24 * 60 * 60 * 1000) {
+                        calibrationData = response.calibrationData;
+                        console.log('EyeGuard: Loaded existing calibration');
+                    } else {
+                        console.log('EyeGuard: Calibration expired, will recalibrate');
+                    }
+                } else {
+                    console.log('EyeGuard: No calibration data found, will calibrate');
+                }
+            } catch (error) {
+                console.warn('EyeGuard: Failed to process calibration data:', error);
             }
-        }
-    } catch (error) {
-        console.warn('EyeGuard: Failed to load calibration data:', error);
-    }
+            resolve();
+        });
+    });
 }
 
-// Save calibration data to storage
+// Save calibration data via message passing
 async function saveCalibrationData(data) {
-    try {
-        await chrome.storage.local.set({ calibrationData: data });
-        console.log('EyeGuard: Calibration data saved');
-    } catch (error) {
-        console.warn('EyeGuard: Failed to save calibration data:', error);
-    }
+    chrome.runtime.sendMessage({ 
+        type: 'eyeguard.storage.set.calibration', 
+        calibrationData: data 
+    }, (response) => {
+        if (response && response.success) {
+            console.log('EyeGuard: Calibration data saved');
+        } else {
+            console.warn('EyeGuard: Failed to save calibration data');
+        }
+    });
 }
 
 // Update status display
@@ -253,7 +336,8 @@ chrome.runtime.onMessage.addListener((message) => {
             // Reset calibration
             calibrationData = null;
             window.calibrationSamples = [];
-            chrome.storage.local.remove('calibrationData');
+            // Send reset message to background
+            chrome.runtime.sendMessage({ type: 'eyeguard.storage.remove.calibration' });
             updateStatus('Calibration reset');
             break;
     }

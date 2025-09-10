@@ -274,5 +274,52 @@ chrome.runtime.onMessage.addListener(async (message, sender, sendResponse) => {
             sendResponse({ success: true });
             return;
         }
+        
+        // NEW: Storage message handlers for offscreen document
+        case "eyeguard.storage.get.calibration": {
+            try {
+                const { calibrationData } = await chrome.storage.local.get('calibrationData');
+                console.log('EyeGuard: Calibration data requested, responding with:', calibrationData);
+                sendResponse({ calibrationData });
+            } catch (error) {
+                console.error('EyeGuard: Failed to get calibration data:', error);
+                sendResponse({ calibrationData: null });
+            }
+            return;
+        }
+        case "eyeguard.storage.set.calibration": {
+            try {
+                const { calibrationData } = message;
+                await chrome.storage.local.set({ calibrationData });
+                console.log('EyeGuard: Calibration data saved:', calibrationData);
+                sendResponse({ success: true });
+            } catch (error) {
+                console.error('EyeGuard: Failed to save calibration data:', error);
+                sendResponse({ success: false, error: error.message });
+            }
+            return;
+        }
+        case "eyeguard.storage.get.settings": {
+            try {
+                const { settings = DEFAULT_SETTINGS } = await chrome.storage.local.get('settings');
+                console.log('EyeGuard: Settings requested, responding with:', settings);
+                sendResponse({ settings });
+            } catch (error) {
+                console.error('EyeGuard: Failed to get settings:', error);
+                sendResponse({ settings: DEFAULT_SETTINGS });
+            }
+            return;
+        }
+        case "eyeguard.storage.remove.calibration": {
+            try {
+                await chrome.storage.local.remove('calibrationData');
+                console.log('EyeGuard: Calibration data removed');
+                sendResponse({ success: true });
+            } catch (error) {
+                console.error('EyeGuard: Failed to remove calibration data:', error);
+                sendResponse({ success: false, error: error.message });
+            }
+            return;
+        }
     }
 });
