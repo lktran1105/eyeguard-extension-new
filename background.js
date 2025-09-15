@@ -18,12 +18,16 @@ let activeMinutes = 0;
 let isBreakInProgress = false;
 let snoozedUntilMs = 0;
 
+// Keep service worker alive
+let keepAliveInterval;
+
 // Initialize on install/startup
 chrome.runtime.onInstalled.addListener(async () => {
     console.log('EyeGuard: Extension installed');
     await chrome.storage.local.set({ activeMinutes: 0 });
     await chrome.storage.local.set({ settings: DEFAULT_SETTINGS });
     await ensureBreakTickAlarm();
+    startKeepAlive();
 });
 
 chrome.runtime.onStartup.addListener(async () => {
@@ -31,6 +35,23 @@ chrome.runtime.onStartup.addListener(async () => {
     const { activeMinutes: saved } = await chrome.storage.local.get('activeMinutes');
     activeMinutes = saved || 0;
     await ensureBreakTickAlarm();
+    startKeepAlive();
+});
+
+// Keep service worker alive
+function startKeepAlive() {
+    if (keepAliveInterval) clearInterval(keepAliveInterval);
+    keepAliveInterval = setInterval(() => {
+        console.log('EyeGuard: Service worker keep-alive ping');
+    }, 20000); // Ping every 20 seconds
+}
+
+// Stop keep-alive when extension is disabled
+chrome.runtime.onSuspend.addListener(() => {
+    if (keepAliveInterval) {
+        clearInterval(keepAliveInterval);
+        keepAliveInterval = null;
+    }
 });
 
 // Alarm handlers
@@ -213,6 +234,8 @@ function broadcastMessage(message) {
 
 // Messages from popup/content/offscreen
 chrome.runtime.onMessage.addListener(async (message, sender, sendResponse) => {
+    console.log('EyeGuard: Message received:', message.type, 'from:', sender.origin);
+    
     switch (message?.type) {
         case "eyeguard.request.status": {
             const { settings = DEFAULT_SETTINGS } = await chrome.storage.local.get("settings");
@@ -265,7 +288,9 @@ chrome.runtime.onMessage.addListener(async (message, sender, sendResponse) => {
             return;
         }
         case "eyeguard.proximity.warning": {
+            console.log('🚨 EyeGuard: PROXIMITY WARNING RECEIVED!');
             broadcastMessage({ type: "eyeguard.proximity.warning" });
+            console.log('EyeGuard: Proximity warning broadcasted to all tabs');
             sendResponse({ success: true });
             return;
         }

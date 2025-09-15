@@ -239,7 +239,7 @@ function performCalibration(faceSize) {
 async function checkProximity(faceSize) {
     if (!calibrationData) return false;
     
-    // Get current sensitivity setting via message passing
+    // Get current sensitivity setting
     const sensitivity = await getSensitivity();
     
     // Calculate proximity ratio (larger face = closer to screen)
@@ -248,7 +248,20 @@ async function checkProximity(faceSize) {
     // Apply sensitivity adjustment
     const threshold = PROXIMITY_THRESHOLD * sensitivity;
     
-    return proximityRatio > threshold;
+    const isTooClose = proximityRatio > threshold;
+
+    // DETAILED LOGGING FOR DEBUGGING
+    console.log('=== PROXIMITY DEBUG ===');
+    console.log('Current face size:', faceSize.toFixed(4));
+    console.log('Baseline face size:', calibrationData.baselineFaceSize.toFixed(4));
+    console.log('Proximity ratio (current/baseline):', proximityRatio.toFixed(4));
+    console.log('Sensitivity setting:', sensitivity);
+    console.log('PROXIMITY_THRESHOLD constant:', PROXIMITY_THRESHOLD);
+    console.log('Calculated threshold (PROXIMITY_THRESHOLD * sensitivity):', threshold.toFixed(4));
+    console.log('Is too close? (ratio > threshold):', isTooClose);
+    console.log('=== END DEBUG ===');
+
+    return isTooClose;
 }
 
 // Get sensitivity setting via message passing
@@ -275,7 +288,14 @@ async function getSensitivity() {
 
 // Send proximity warning to background script
 function sendProximityWarning() {
-    chrome.runtime.sendMessage({ type: 'eyeguard.proximity.warning' });
+    console.log('🚨 EyeGuard: SENDING PROXIMITY WARNING!');
+    chrome.runtime.sendMessage({ type: 'eyeguard.proximity.warning' }, (response) => {
+        if (chrome.runtime.lastError) {
+            console.error('❌ EyeGuard: Failed to send proximity warning:', chrome.runtime.lastError);
+        } else {
+            console.log('✅ EyeGuard: Proximity warning sent successfully:', response);
+        }
+    });
     updateStatus('TOO CLOSE!');
 }
 

@@ -36,6 +36,9 @@
 		};
 	}
 
+	// Make createToast globally available for testing
+	window.createToast = createToast;
+
 	function showBreakOverlay(durationSeconds) {
 		if (breakOverlayEl) return;
 		const overlay = document.createElement("div");
@@ -107,6 +110,7 @@
 	chrome.runtime.onMessage.addListener((message) => {
 		try {
 			if (message?.type === "eyeguard.proximity.warning") {
+				console.log('EyeGuard: Content script received proximity warning');
 				createToast("Too close to screen");
 			}
 			if (message?.type === "eyeguard.break.reminder") {
